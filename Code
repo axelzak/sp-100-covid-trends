@@ -1,0 +1,100 @@
+# Imen Ferchichi, Francesca Pjetri, Axel Zaccheo
+# Programming in Finance and Economics, USI University in Lugano, Switzerland
+# Final project, end of Fall semester 2024/2025, Master in Finance
+# imen.ferchichi@usi.ch; francesca.pjetri@usi.ch; axel.zaccheo@usi.ch
+
+## ============================= PART A ================================== ## 
+## TASK:
+## We need to find the CIK code of the S&P 100 companies
+
+# Install beautifulsoup 4
+pip install requests beautifulsoup4 pandas
+
+# Import all necessary packages
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import numpy as np
+import pandas as pd
+import wikipedia as wp
+import yfinance as yf
+import requests 
+import os
+import re
+import unicodedata
+import csv
+from bs4 import BeautifulSoup
+
+
+# Import all S&P 100 companies Ticker, Name and Sector
+
+html = wp.page("S&P 100").html().encode("UTF-8")
+stocks = pd.read_html(html)[2].set_index("Symbol")
+stocks = stocks.drop("GOOG")
+stocks.loc["GOOGL", "Name"] = "Alphabet"
+stocks = stocks.rename(index={"BRK.B": "BRK-B"})
+print(stocks)
+
+# Extract tickers from first column and create a list with quotation marks
+tickers_sp100 = stocks.index.tolist()
+
+# Create request header
+headers = {'User-Agent': "axelzaccheo@gmail.com"}
+# Get all companies data
+companyTickers = requests.get(
+    "https://www.sec.gov/files/company_tickers.json",
+    headers=headers
+    )
+
+# Review response / keys
+## print(companyTickers.json().keys())
+
+# Format response to dictionary and get first key/value
+firstEntry = companyTickers.json()['0']
+# Parse CIK // without leading zeros
+directCik = companyTickers.json()['0']['cik_str']
+
+# Dictionary to dataframe
+companyData = pd.DataFrame.from_dict(companyTickers.json(),
+                                     orient='index')
+
+# Add leading zeros to CIK
+companyData['cik_str'] = companyData['cik_str'].astype(
+                           str).str.zfill(10)
+# Review data
+print(companyData)
+
+# Filter DataFrame using the tickers_sp100 list
+SP100_CIK_DF = companyData[companyData['ticker'].isin(tickers_sp100)]
+# Show result
+print(SP100_CIK_DF)
+
+# Extract all the CIK codes from 'cik_str' in the SP_100_CIK_DF DataFrame
+cik_list = SP100_CIK_DF['cik_str'].tolist()
+# Show the list
+print(cik_list)
+
+
+## ============================= PART B ================================== ## 
+## TASK:
+## With the cik list we need to extract the 10Q filings of these companies
+## in the period 2018-2023
+
+# Now with the cik_list we want to extract the company data in JSON format
+# generate and print URL using a for loop
+for cik in cik_list:
+    url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
+    print(url)
+
+# Name of the file where to save the URL
+output_file = "cik_urls.csv"
+
+# Write URL in a csv file
+with open(output_file, mode='w', newline='', encoding='utf-8') as file:
+    writer = csv.writer(file)
+    writer.writerow(['CIK', 'URL'])  # Header of the CSV
+
+    for cik in cik_list:
+        url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
+        writer.writerow([cik, url])  # Write CIK and URL in the file
+
+print(f"File saved as {output_file}")
